@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pinch — Modes</title>
+<link rel="stylesheet" href="./style.css" />
+<script>window.PINCH_FIREBASE_CONFIG = {};</script>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 36px;
+  }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .mode-card {
+    position: relative;
+    padding: 28px;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    overflow: hidden;
+  }
+  .mode-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent, #c690ff);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.5), 0 0 30px rgba(198,144,255,0.15);
+  }
+  .mode-card .accent-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+  }
+  .mode-card .glow {
+    position: absolute;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.08;
+    bottom: -100px; right: -80px;
+    filter: blur(40px);
+    pointer-events: none;
+  }
+  .mode-card h2 {
+    font-size: 2rem;
+    font-weight: 300;
+    margin-bottom: 6px;
+    margin-top: 18px;
+    letter-spacing: -0.01em;
+  }
+  .mode-card .tag {
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    color: var(--accent);
+    opacity: 0.85;
+    font-weight: 600;
+  }
+  .mode-card p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    opacity: 0.7;
+    min-height: 60px;
+  }
+  .mode-card .specs {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .mode-card .spec {
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+    font-weight: 600;
+  }
+  .mode-card .play-arrow {
+    position: absolute;
+    bottom: 24px;
+    right: 28px;
+    font-size: 1.3rem;
+    color: var(--accent);
+    opacity: 0.5;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .mode-card:hover .play-arrow {
+    opacity: 1;
+    transform: translateX(6px);
+  }
+</style>
+</head>
+<body>
+
+<div id="nav-slot"></div>
+
+<main class="page">
+  <div class="page-inner mount">
+    <div class="eyebrow">Pick your trial</div>
+    <h1 class="display">Three <em>modes.</em></h1>
+    <p class="tagline" style="max-width:560px">
+      Each mode has its own leaderboard. Choose your battle.
+    </p>
+
+    <div class="grid" id="modes-grid"></div>
+  </div>
+</main>
+
+<script type="module">
+  import { MODES, MODE_ORDER, renderNav } from "./core.js";
+
+  document.getElementById("nav-slot").innerHTML = renderNav("modes");
+
+  const grid = document.getElementById("modes-grid");
+  grid.innerHTML = MODE_ORDER.map((id) => {
+    const m = MODES[id];
+    const specs = [];
+    if (m.timeLimit) specs.push(`${m.timeLimit}s clock`);
+    else             specs.push("untimed");
+    specs.push(`${m.ballCount} balls`);
+    specs.push(m.metric === "time" ? "fastest wins" : "highest score");
+
+    return `
+      <a href="./play.html?mode=${m.id}" class="mode-card panel" style="--accent:${m.accent}">
+        <div class="accent-bar"></div>
+        <div class="glow"></div>
+        <span class="mode-pill ${m.id}">${m.name}</span>
+        <h2>${m.name}</h2>
+        <div class="tag">${m.tagline}</div>
+        <p>${m.description}</p>
+        <div class="specs">
+          ${specs.map((s) => `<span class="spec">${s}</span>`).join("")}
+        </div>
+        <span class="play-arrow">▶</span>
+      </a>
+    `;
+  }).join("");
+</script>
+</body>
+</html>

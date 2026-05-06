@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pinch — Play</title>
+<link rel="stylesheet" href="./style.css" />
+<script>window.PINCH_FIREBASE_CONFIG = {};</script>
+
+<style>
+  body { overflow: hidden; }
+
+  /* Mid-game HUD pill */
+  .hud {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    background: rgba(20, 24, 50, 0.85);
+    border: 1px solid rgba(140, 180, 255, 0.25);
+    border-radius: 999px;
+    padding: 11px 22px;
+    backdrop-filter: blur(8px);
+  }
+  .hud .label {
+    font-size: 0.62rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+  .hud .v { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hud .mode-name { color: var(--accent, #c690ff); font-size: 1rem; font-weight: 600; }
+  .hud .player-name { color: #c690ff; font-size: 1rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hud .score-v { color: #8cf; }
+  .hud .timer-v { color: #fff; opacity: 0.85; font-size: 1.05rem; }
+  .hud .timer-v.low { color: #ff7777; animation: pulse 0.6s ease infinite alternate; }
+  @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+  .hud .divider { width: 1px; height: 30px; background: rgba(255,255,255,0.12); }
+
+  /* Camera preview */
+  .cam-wrap {
+    position: fixed;
+    top: 80px;
+    right: 18px;
+    width: 200px;
+    aspect-ratio: 4 / 3;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(140, 180, 255, 0.3);
+    z-index: 20;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  .cam-wrap video, .cam-wrap canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+  .cam-wrap video { transform: scaleX(-1); object-fit: cover; }
+  .cam-wrap .pill {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(0,0,0,0.6);
+    color: #aaffaa;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  /* Compact leaderboard rail */
+  .rail {
+    position: fixed;
+    top: 80px;
+    left: 18px;
+    width: 240px;
+    z-index: 25;
+    padding: 16px 16px 12px;
+    background: rgba(20, 24, 50, 0.85);
+    border: 1px solid rgba(140, 180, 255, 0.18);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  .rail.collapsed { transform: translateX(calc(-100% + 56px)); opacity: 0.7; }
+  .rail .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; cursor: pointer;
+  }
+  .rail .title {
+    font-size: 0.65rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent, #c690ff);
+    font-weight: 700;
+  }
+  .rail .row {
+    display: grid;
+    grid-template-columns: 22px 1fr 56px;
+    gap: 8px;
+    padding: 4px 4px;
+    font-size: 0.78rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .rail .row.you { background: rgba(198,144,255,0.12); border-radius: 6px; padding-left: 6px; }
+  .rail .row .rank { color: rgba(255,255,255,0.4); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rail .row.gold .rank   { color: #ffd089; }
+  .rail .row.silver .rank { color: #d8d8d8; }
+  .rail .row.bronze .rank { color: #c89570; }
+  .rail .row .name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rail .row .v {
+    text-align: right; font-variant-numeric: tabular-nums;
+    color: rgba(255,255,255,0.85); font-weight: 600;
+  }
+  .rail .empty {
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 0.75rem; padding: 14px 0;
+    font-style: italic;
+  }
+
+  /* ── Login overlay ── */
+  .overlay {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(5, 6, 15, 0.94);
+    backdrop-filter: blur(6px);
+    text-align: center;
+    padding: 24px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    font-weight: 200;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .overlay h1 em {
+    font-style: italic;
+    background: linear-gradient(90deg, #6fb4ff, #c690ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 400;
+  }
+  .overlay .mode-line {
+    font-size: 0.8rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 30px;
+    color: var(--accent, #c690ff);
+    font-weight: 600;
+  }
+  .overlay p {
+    font-size: 0.85rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    max-width: 480px;
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+  .overlay .input { width: 320px; text-align: center; margin-bottom: 18px; }
+  .err { color: #ff7777; margin-top: 14px; font-size: 0.8rem; min-height: 1.4em; }
+
+  /* ── Win overlay ── */
+  .win {
+    position: fixed; inset: 0; z-index: 35;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(5, 6, 15, 0.85);
+    backdrop-filter: blur(6px);
+    text-align: center;
+  }
+  .win.show { display: flex; animation: fade-in 0.6s ease; }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .win h2 {
+    font-size: clamp(2.5rem, 7vw, 5rem);
+    font-weight: 200;
+    margin-bottom: 4px;
+  }
+  .win h2 em {
+    font-style: italic;
+    background: linear-gradient(90deg, #ffd089, #ff9ec1);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 400;
+  }
+  .win .score-line {
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+  }
+  .win .rank-line {
+    font-size: 0.85rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 28px;
+  }
+  .win .rank-line strong { color: #ffd089; }
+  .win .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  /* ── Game objects ── */
+  .ball {
+    position: fixed;
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    pointer-events: none;
+    transition: transform 0.05s linear, box-shadow 0.2s, opacity 0.3s;
+    z-index: 10;
+    will-change: transform;
+  }
+  .ball.held { transform: translate(-50%, -50%) scale(1.15); z-index: 25; }
+  .ball.placed { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  .ball.spawn { animation: spawn 0.35s ease-out; }
+  @keyframes spawn { from { transform: translate(-50%, -50%) scale(0); } to { transform: translate(-50%, -50%) scale(1); } }
+
+  .bin {
+    position: fixed;
+    bottom: 6vh;
+    width: 130px;
+    height: 130px;
+    border-radius: 22px;
+    border: 4px dashed currentColor;
+    z-index: 5;
+    transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .bin.hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-6px); }
+  .bin.matched { border-style: solid; box-shadow: 0 0 40px currentColor; }
+  .bin .label {
+    position: absolute;
+    bottom: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .bin .count {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: currentColor;
+    opacity: 0.7;
+  }
+
+  .cursor {
+    position: fixed;
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 50;
+    transform: translate(-50%, -50%);
+    transition: width 0.12s, height 0.12s, background 0.12s, border-color 0.12s;
+    border: 3px solid #6fb4ff;
+    background: rgba(111, 180, 255, 0.15);
+    box-shadow: 0 0 18px rgba(111, 180, 255, 0.55);
+  }
+  .cursor.pinching {
+    width: 28px; height: 28px;
+    background: rgba(255, 220, 138, 0.5);
+    border-color: #ffd089;
+    box-shadow: 0 0 22px #ffd089;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.62rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    opacity: 0.4;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="nav-slot"></div>
+
+<!-- Login overlay -->
+<div class="overlay" id="overlay">
+  <div class="mode-line" id="overlay-mode">— mode</div>
+  <h1>Ready to <em>pinch?</em></h1>
+  <p id="overlay-desc">—</p>
+  <input class="input" id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off" />
+  <button class="btn btn-primary" id="start-btn">Start Game</button>
+  <button class="btn btn-ghost" id="change-name-btn" style="display:none; margin-top:14px;">Use a different name</button>
+  <div class="err" id="err"></div>
+  <div style="margin-top:36px; font-size:0.6rem; letter-spacing:0.18em; text-transform:uppercase; opacity:0.4" id="mode-note">…</div>
+</div>
+
+<!-- HUD -->
+<div class="hud" id="hud" style="display:none">
+  <div>
+    <div class="label">Mode</div>
+    <div class="v mode-name" id="hud-mode">—</div>
+  </div>
+  <div class="divider"></div>
+  <div>
+    <div class="label">Player</div>
+    <div class="v player-name" id="hud-name">—</div>
+  </div>
+  <div class="divider"></div>
+  <div>
+    <div class="label" id="hud-score-label">Score</div>
+    <div class="v score-v" id="hud-score">0</div>
+  </div>
+  <div class="divider"></div>
+  <div>
+    <div class="label">Time</div>
+    <div class="v timer-v" id="hud-time">0:00</div>
+  </div>
+</div>
+
+<!-- Leaderboard rail -->
+<div class="rail" id="rail" style="display:none">
+  <div class="header" id="rail-header">
+    <span class="title" id="rail-title">◆ Leaderboard</span>
+    <span class="mode-badge" id="rail-mode">…</span>
+  </div>
+  <div id="rail-rows"><div class="empty">No scores yet.</div></div>
+</div>
+
+<!-- Camera preview -->
+<div class="cam-wrap" id="cam-wrap" style="display:none">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="cam-canvas"></canvas>
+  <div class="pill" id="cam-pill">…</div>
+</div>
+
+<!-- Hand skeleton overlay -->
+<canvas id="hand-canvas" style="position:fixed; inset:0; pointer-events:none; z-index:15"></canvas>
+
+<!-- Hand cursor -->
+<div class="cursor" id="cursor" style="display:none"></div>
+
+<!-- Win overlay -->
+<div class="win" id="win">
+  <h2>Round <em>complete.</em></h2>
+  <div class="score-line" id="win-score">—</div>
+  <div class="rank-line" id="win-rank">submitting…</div>
+  <div class="actions">
+    <button class="btn btn-warm" id="restart-btn">Play Again</button>
+    <a class="btn btn-ghost" href="./modes.html">Change Mode</a>
+    <a class="btn btn-ghost" href="./leaderboard.html" id="lb-link">Full Leaderboard</a>
+  </div>
+</div>
+
+<div class="hint">Pinch · Move · Release</div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35";
+import {
+  MODES, MODE_ORDER, getBackend, renderNav,
+  fmtTime, escapeHtml, getStoredName, setStoredName,
+} from "./core.js";
+
+/* ─────────────────────────────────────────────
+   MODE / NAV
+   ───────────────────────────────────────────── */
+document.getElementById("nav-slot").innerHTML = renderNav("play");
+
+const urlMode = new URLSearchParams(location.search).get("mode");
+const MODE = MODES[MODE_ORDER.includes(urlMode) ? urlMode : "classic"];
+document.documentElement.style.setProperty("--accent", MODE.accent);
+document.getElementById("overlay-mode").textContent = `${MODE.name} mode`;
+document.getElementById("overlay-mode").style.color = MODE.accent;
+document.getElementById("overlay-desc").textContent = MODE.description;
+document.getElementById("hud-mode").textContent = MODE.name;
+document.getElementById("hud-score-label").textContent = MODE.metric === "score" ? "Placed" : "Score";
+document.getElementById("rail-title").textContent = `◆ ${MODE.name} Top 10`;
+document.getElementById("lb-link").href = `./leaderboard.html?mode=${MODE.id}`;
+
+/* ─────────────────────────────────────────────
+   USERNAME
+   ───────────────────────────────────────────── */
+const nameInput = document.getElementById("name-input");
+const startBtn = document.getElementById("start-btn");
+const errEl = document.getElementById("err");
+const overlay = document.getElementById("overlay");
+const changeNameBtn = document.getElementById("change-name-btn");
+
+const stored = getStoredName();
+if (stored) {
+  nameInput.value = stored;
+  changeNameBtn.style.display = "inline-flex";
+}
+nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") startBtn.click(); });
+changeNameBtn.addEventListener("click", () => { nameInput.value = ""; nameInput.focus(); });
+
+/* ─────────────────────────────────────────────
+   BACKEND init + rail
+   ───────────────────────────────────────────── */
+let backend = null;
+const railModeEl = document.getElementById("rail-mode");
+const modeNoteEl = document.getElementById("mode-note");
+(async () => {
+  backend = await getBackend();
+  railModeEl.textContent = backend.mode === "public" ? "Public" : "Local";
+  railModeEl.classList.add(backend.mode === "public" ? "public" : "local");
+  modeNoteEl.textContent = backend.mode === "public"
+    ? "Public leaderboard — competing with everyone."
+    : "Local mode — scores saved on this device only.";
+  refreshRail();
+})();
+
+/* ─────────────────────────────────────────────
+   GAME STATE
+   ───────────────────────────────────────────── */
+const COLORS = [
+  { id: "red",    hex: "#ff5b5b", name: "Red"    },
+  { id: "orange", hex: "#ff9d3a", name: "Orange" },
+  { id: "yellow", hex: "#ffd64a", name: "Yellow" },
+  { id: "green",  hex: "#5dd97a", name: "Green"  },
+  { id: "blue",   hex: "#5d9eff", name: "Blue"   },
+];
+const COLOR_BY_ID = Object.fromEntries(COLORS.map((c) => [c.id, c]));
+
+const balls = [];                 // { uid, color, x, y, placed }
+const bins = [];                  // { id, color, el, rect, count }
+const ballsEls = new Map();
+let placedCount = 0;
+let startedAt = 0;
+let pinching = false;
+let heldBallUid = null;
+let nextBallUid = 1;
+let timerEnded = false;
+let gameRunning = false;
+
+function freshBall(colorId, x, y) {
+  return { uid: nextBallUid++, color: colorId, x, y, placed: false };
+}
+
+function spawnBallElement(ball) {
+  const c = COLOR_BY_ID[ball.color];
+  const el = document.createElement("div");
+  el.className = "ball spawn";
+  el.dataset.uid = ball.uid;
+  el.style.background = `radial-gradient(circle at 35% 30%, ${lighten(c.hex)}, ${c.hex} 65%, ${darken(c.hex)})`;
+  el.style.boxShadow = `0 8px 22px ${c.hex}66, inset 0 -10px 18px rgba(0,0,0,0.35)`;
+  el.style.transform = `translate(-50%, -50%)`;
+  el.style.left = `${ball.x}px`;
+  el.style.top  = `${ball.y}px`;
+  document.body.appendChild(el);
+  ballsEls.set(ball.uid, el);
+  return el;
+}
+
+function pickBallSpawn() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const safeTop = 150;
+  const safeBottom = H * 0.55;
+  const safeLeft = 290;
+  const safeRight = W - 240;
+  let tries = 0, x = 0, y = 0;
+  do {
+    x = safeLeft + Math.random() * Math.max(100, safeRight - safeLeft);
+    y = safeTop + Math.random() * Math.max(100, safeBottom - safeTop);
+    tries++;
+  } while (
+    balls.some((b) => !b.placed && Math.hypot(b.x - x, b.y - y) < 110) &&
+    tries < 30
+  );
+  return { x, y };
+}
+
+function buildBins() {
+  bins.forEach((b) => b.el.remove());
+  bins.length = 0;
+  const W = window.innerWidth;
+  const binW = 130;
+  const gap  = (W - binW * COLORS.length) / (COLORS.length + 1);
+  COLORS.forEach((c, i) => {
+    const el = document.createElement("div");
+    el.className = "bin";
+    el.style.left = `${gap * (i + 1) + binW * i}px`;
+    el.style.color = c.hex;
+    el.dataset.colorId = c.id;
+    el.innerHTML = `
+      <div class="label" style="color:${c.hex}">${c.name}</div>
+      <div class="count" style="display:none"></div>
+    `;
+    document.body.appendChild(el);
+    bins.push({ id: c.id, color: c.hex, el, rect: null, count: 0 });
+  });
+  recomputeBinRects();
+}
+function recomputeBinRects() { bins.forEach((b) => { b.rect = b.el.getBoundingClientRect(); }); }
+
+function buildWorld() {
+  ballsEls.forEach((el) => el.remove());
+  ballsEls.clear();
+  balls.length = 0;
+  placedCount = 0;
+  timerEnded = false;
+  updateScore();
+
+  buildBins();
+
+  if (MODE.id === "classic") {
+    spawnInitialUniqueColors(5);
+  } else if (MODE.id === "sprint") {
+    spawnInitialDistribution([0,1,2,3,4,0,1,2,3,4]);
+  } else if (MODE.id === "timeattack") {
+    spawnInitialUniqueColors(5);
+  }
+}
+
+function spawnInitialUniqueColors(n) {
+  for (let i = 0; i < n; i++) {
+    const c = COLORS[i % COLORS.length];
+    const { x, y } = pickBallSpawn();
+    const ball = freshBall(c.id, x, y);
+    balls.push(ball);
+    spawnBallElement(ball);
+  }
+}
+function spawnInitialDistribution(colorIndexes) {
+  for (const idx of colorIndexes) {
+    const c = COLORS[idx];
+    const { x, y } = pickBallSpawn();
+    const ball = freshBall(c.id, x, y);
+    balls.push(ball);
+    spawnBallElement(ball);
+  }
+}
+function spawnReplacementBall() {
+  // Used in time-attack mode only.
+  const c = COLORS[Math.floor(Math.random() * COLORS.length)];
+  const { x, y } = pickBallSpawn();
+  const ball = freshBall(c.id, x, y);
+  balls.push(ball);
+  spawnBallElement(ball);
+}
+
+function lighten(hex) {
+  const c = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((c >> 16) & 0xff) + 60);
+  const g = Math.min(255, ((c >>  8) & 0xff) + 60);
+  const b = Math.min(255, ( c        & 0xff) + 60);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+function darken(hex) {
+  const c = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, ((c >> 16) & 0xff) - 60);
+  const g = Math.max(0, ((c >>  8) & 0xff) - 60);
+  const b = Math.max(0, ( c        & 0xff) - 60);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+window.addEventListener("resize", () => {
+  if (gameRunning) buildWorld();
+  resizeHandCanvas();
+});
+
+/* ─────────────────────────────────────────────
+   MEDIAPIPE
+   ───────────────────────────────────────────── */
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],
+  [0,17],
+];
+
+let landmarker = null;
+
+async function initLandmarker() {
+  const fileset = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
+  );
+  const opts = (delegate) => ({
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate,
+    },
+    runningMode: "VIDEO",
+    numHands: 1,
+    minHandDetectionConfidence: 0.4,
+    minHandPresenceConfidence: 0.4,
+    minTrackingConfidence: 0.4,
+  });
+  try {
+    landmarker = await HandLandmarker.createFromOptions(fileset, opts("GPU"));
+  } catch (e) {
+    console.warn("[pinch] GPU delegate failed, using CPU", e);
+    landmarker = await HandLandmarker.createFromOptions(fileset, opts("CPU"));
+  }
+}
+
+/* ─────────────────────────────────────────────
+   START
+   ───────────────────────────────────────────── */
+const video = document.getElementById("video");
+const camCanvas = document.getElementById("cam-canvas");
+const camCtx = camCanvas.getContext("2d");
+const handCanvas = document.getElementById("hand-canvas");
+const handCtx = handCanvas.getContext("2d");
+const camPill = document.getElementById("cam-pill");
+const cursorEl = document.getElementById("cursor");
+
+let lastVideoTime = -1;
+let lastDetect = null;
+
+startBtn.addEventListener("click", async () => {
+  const name = nameInput.value.trim();
+  if (!name) { errEl.textContent = "Pick a name to continue."; nameInput.focus(); return; }
+  if (name.length < 2) { errEl.textContent = "Name must be at least 2 characters."; return; }
+  errEl.textContent = "";
+  startBtn.disabled = true;
+  startBtn.textContent = "Loading…";
+
+  await backend.signInAs(name);
+  setStoredName(name);
+
+  try { await initLandmarker(); }
+  catch (e) {
+    errEl.textContent = "Failed to load hand model: " + (e?.message ?? e);
+    startBtn.disabled = false; startBtn.textContent = "Retry";
+    return;
+  }
+  startBtn.textContent = "Starting camera…";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+      audio: false,
+    });
+    video.srcObject = stream;
+    await new Promise((res) => video.addEventListener("loadedmetadata", res, { once: true }));
+    await video.play();
+  } catch (e) {
+    errEl.textContent = "Camera blocked: " + (e?.message ?? e);
+    startBtn.disabled = false; startBtn.textContent = "Retry";
+    return;
+  }
+
+  camCanvas.width = video.videoWidth;
+  camCanvas.height = video.videoHeight;
+  resizeHandCanvas();
+
+  overlay.classList.add("hidden");
+  document.getElementById("hud-name").textContent = name;
+  document.getElementById("hud").style.display = "flex";
+  document.getElementById("rail").style.display = "block";
+  document.getElementById("cam-wrap").style.display = "block";
+  cursorEl.style.display = "block";
+
+  startedAt = performance.now();
+  gameRunning = true;
+  buildWorld();
+  refreshRail();
+  requestAnimationFrame(loop);
+});
+
+function resizeHandCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  handCanvas.width  = window.innerWidth  * dpr;
+  handCanvas.height = window.innerHeight * dpr;
+  handCtx.setTransform(1, 0, 0, 1, 0, 0);
+  handCtx.scale(dpr, dpr);
+}
+
+/* ─────────────────────────────────────────────
+   LOOP
+   ───────────────────────────────────────────── */
+function loop(t) {
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    lastDetect = landmarker.detectForVideo(video, t);
+  }
+  drawCameraOverlay(lastDetect);
+  drawHandOverlay(lastDetect);
+  handleGesture(lastDetect);
+  updateTimer();
+  requestAnimationFrame(loop);
+}
+
+function drawCameraOverlay(result) {
+  if (!result) return;
+  const w = camCanvas.width, h = camCanvas.height;
+  camCtx.clearRect(0, 0, w, h);
+  if (!result.landmarks || result.landmarks.length === 0) {
+    camPill.textContent = "no hand";
+    camPill.style.color = "#ff7777";
+    return;
+  }
+  const lm = result.landmarks[0];
+  camCtx.save();
+  camCtx.translate(w, 0);
+  camCtx.scale(-1, 1);
+  camCtx.strokeStyle = pinching ? "#ffd089" : "#6fb4ff";
+  camCtx.lineWidth = 3;
+  HAND_CONNECTIONS.forEach(([a,b]) => {
+    camCtx.beginPath();
+    camCtx.moveTo(lm[a].x * w, lm[a].y * h);
+    camCtx.lineTo(lm[b].x * w, lm[b].y * h);
+    camCtx.stroke();
+  });
+  camCtx.fillStyle = "#fff";
+  lm.forEach((p, i) => {
+    const r = (i === 4 || i === 8) ? 5 : 3;
+    camCtx.beginPath();
+    camCtx.arc(p.x * w, p.y * h, r, 0, Math.PI * 2);
+    camCtx.fill();
+  });
+  camCtx.restore();
+  camPill.textContent = pinching ? "PINCH" : "TRACKING";
+  camPill.style.color = pinching ? "#ffd089" : "#aaffaa";
+}
+
+function drawHandOverlay(result) {
+  const W = window.innerWidth, H = window.innerHeight;
+  handCtx.clearRect(0, 0, W, H);
+  if (!result || !result.landmarks || result.landmarks.length === 0) return;
+  const lm = result.landmarks[0];
+  const px = (l) => ({ x: (1 - l.x) * W, y: l.y * H });
+  const pts = lm.map(px);
+
+  const baseColor = pinching ? "#ffd089" : "#6fb4ff";
+  drawBones(pts, [[0,5],[5,9],[9,13],[13,17],[0,17],[9,10],[10,11],[11,12],[13,14],[14,15],[15,16],[17,18],[18,19],[19,20]],
+    baseColor, 2.5, 0.32);
+  drawBones(pts, [[0,1],[1,2],[2,3],[3,4],[5,6],[6,7],[7,8]],
+    baseColor, 4.5, 0.85);
+
+  pts.forEach((p, i) => {
+    const tip = i === 4 || i === 8;
+    handCtx.beginPath();
+    handCtx.arc(p.x, p.y, tip ? 9 : 4, 0, Math.PI * 2);
+    handCtx.fillStyle = tip ? "#ffffff" : baseColor;
+    handCtx.globalAlpha = tip ? 0.95 : 0.65;
+    handCtx.fill();
+    if (tip) {
+      handCtx.beginPath();
+      handCtx.arc(p.x, p.y, 16, 0, Math.PI * 2);
+      handCtx.fillStyle = baseColor;
+      handCtx.globalAlpha = 0.18;
+      handCtx.fill();
+    }
+  });
+  handCtx.globalAlpha = 1;
+
+  const t = pts[4], i = pts[8];
+  handCtx.beginPath();
+  handCtx.moveTo(t.x, t.y);
+  handCtx.lineTo(i.x, i.y);
+  handCtx.strokeStyle = pinching ? "#ffd089" : "#fff";
+  handCtx.globalAlpha = pinching ? 0.9 : 0.5;
+  handCtx.lineWidth = pinching ? 4 : 2;
+  handCtx.setLineDash(pinching ? [] : [6, 8]);
+  handCtx.stroke();
+  handCtx.setLineDash([]);
+  handCtx.globalAlpha = 1;
+}
+function drawBones(pts, edges, color, width, alpha) {
+  handCtx.strokeStyle = color;
+  handCtx.lineWidth = width;
+  handCtx.globalAlpha = alpha;
+  handCtx.lineCap = "round";
+  edges.forEach(([a, b]) => {
+    handCtx.beginPath();
+    handCtx.moveTo(pts[a].x, pts[a].y);
+    handCtx.lineTo(pts[b].x, pts[b].y);
+    handCtx.stroke();
+  });
+  handCtx.globalAlpha = 1;
+}
+
+/* ─────────────────────────────────────────────
+   GESTURE
+   ───────────────────────────────────────────── */
+const PINCH_ON  = 0.55;
+const PINCH_OFF = 0.78;
+
+function handleGesture(result) {
+  if (!result || !result.landmarks || result.landmarks.length === 0) {
+    cursorEl.style.opacity = "0.25";
+    return;
+  }
+  cursorEl.style.opacity = "1";
+  const W = window.innerWidth, H = window.innerHeight;
+  const lm = result.landmarks[0];
+  const thumb = lm[4], index = lm[8], wrist = lm[0], midMCP = lm[9];
+  const handSize = Math.hypot(midMCP.x - wrist.x, midMCP.y - wrist.y) || 1e-6;
+  const ratio = Math.hypot(thumb.x - index.x, thumb.y - index.y) / handSize;
+
+  const wasPinch = pinching;
+  if (!pinching && ratio < PINCH_ON) pinching = true;
+  else if (pinching && ratio > PINCH_OFF) pinching = false;
+
+  const mx = (1 - (thumb.x + index.x) / 2) * W;
+  const my = ((thumb.y + index.y) / 2) * H;
+  cursorEl.style.left = `${mx}px`;
+  cursorEl.style.top  = `${my}px`;
+  cursorEl.classList.toggle("pinching", pinching);
+
+  if (timerEnded) return; // game over, ignore further input
+
+  if (!wasPinch && pinching) {
+    const ball = nearestBall(mx, my, 100);
+    if (ball && !ball.placed) {
+      heldBallUid = ball.uid;
+      ballsEls.get(ball.uid).classList.add("held");
+    }
+  }
+  if (pinching && heldBallUid) {
+    const ball = balls.find((b) => b.uid === heldBallUid);
+    if (ball) {
+      ball.x = mx; ball.y = my;
+      const el = ballsEls.get(ball.uid);
+      el.style.left = `${mx}px`;
+      el.style.top  = `${my}px`;
+    }
+    const overBin = binAt(mx, my);
+    bins.forEach((b) => b.el.classList.toggle("hover", b === overBin));
+  }
+  if (wasPinch && !pinching && heldBallUid) {
+    const ball = balls.find((b) => b.uid === heldBallUid);
+    const el = ballsEls.get(heldBallUid);
+    el.classList.remove("held");
+    bins.forEach((b) => b.el.classList.remove("hover"));
+
+    const targetBin = binAt(mx, my);
+    if (targetBin && targetBin.id === ball.color) {
+      placeBall(ball, targetBin);
+    }
+    heldBallUid = null;
+  }
+}
+
+function placeBall(ball, bin) {
+  ball.placed = true;
+  const el = ballsEls.get(ball.uid);
+  el.classList.add("placed");
+  bin.count = (bin.count || 0) + 1;
+  bin.el.classList.add("matched");
+
+  // Show count for sprint/timeattack where multiple balls per bin are expected
+  if (MODE.id !== "classic") {
+    const countEl = bin.el.querySelector(".count");
+    if (countEl) {
+      countEl.style.display = "block";
+      countEl.textContent = `×${bin.count}`;
+    }
+  }
+
+  placedCount++;
+  updateScore();
+
+  // Remove the ball element after the fade-out animation
+  setTimeout(() => {
+    el.remove();
+    ballsEls.delete(ball.uid);
+  }, 350);
+
+  // Mode-specific completion / respawn behavior
+  if (MODE.id === "timeattack") {
+    spawnReplacementBall();
+  } else {
+    // classic / sprint: end when every spawned ball is placed
+    const remaining = balls.filter((b) => !b.placed).length;
+    if (remaining === 0) finishGame();
+  }
+}
+
+function nearestBall(x, y, maxDist) {
+  let best = null, bestD = maxDist;
+  for (const b of balls) {
+    if (b.placed) continue;
+    const d = Math.hypot(b.x - x, b.y - y);
+    if (d < bestD) { bestD = d; best = b; }
+  }
+  return best;
+}
+function binAt(x, y) {
+  for (const b of bins) {
+    const r = b.rect || b.el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return b;
+  }
+  return null;
+}
+
+/* ─────────────────────────────────────────────
+   HUD / TIMER / FINISH
+   ───────────────────────────────────────────── */
+const scoreEl = document.getElementById("hud-score");
+const timerEl = document.getElementById("hud-time");
+
+function updateScore() {
+  if (MODE.metric === "score") {
+    scoreEl.textContent = `${placedCount}`;
+  } else {
+    scoreEl.textContent = `${placedCount} / ${balls.length}`;
+  }
+  scoreEl.style.color = MODE.accent;
+}
+
+function updateTimer() {
+  if (!startedAt || timerEnded) return;
+  const elapsed = (performance.now() - startedAt) / 1000;
+  if (MODE.timeLimit) {
+    const remaining = Math.max(0, MODE.timeLimit - elapsed);
+    const m = Math.floor(remaining / 60);
+    const s = (remaining - m * 60).toFixed(1).padStart(4, "0");
+    timerEl.textContent = `${m}:${s}`;
+    timerEl.classList.toggle("low", remaining < 10);
+    if (remaining <= 0 && !timerEnded) finishGame();
+  } else {
+    const m = Math.floor(elapsed / 60);
+    const s = (elapsed - m * 60).toFixed(1).padStart(4, "0");
+    timerEl.textContent = `${m}:${s}`;
+  }
+}
+
+const winEl = document.getElementById("win");
+const winScoreEl = document.getElementById("win-score");
+const winRankEl = document.getElementById("win-rank");
+
+async function finishGame() {
+  if (timerEnded) return;
+  timerEnded = true;
+  gameRunning = false;
+  const totalSec = (performance.now() - startedAt) / 1000;
+
+  let payload, displayText;
+  if (MODE.metric === "time") {
+    payload = { mode: MODE.id, time: totalSec };
+    displayText = fmtTime(totalSec);
+  } else {
+    payload = { mode: MODE.id, score: placedCount };
+    displayText = `${placedCount} placed`;
+  }
+
+  winScoreEl.textContent = displayText;
+  winScoreEl.style.color = MODE.accent;
+  winRankEl.textContent = "submitting score…";
+
+  try {
+    await backend.submitScore(payload);
+  } catch (e) {
+    console.warn("[pinch] submitScore failed", e);
+  }
+
+  await refreshRail();
+  const rows = await backend.getLeaderboard(MODE.id);
+  let rank = -1;
+  if (MODE.metric === "time") {
+    rank = rows.findIndex((r) => r.uid === backend.uid && Math.abs(r.time - totalSec) < 0.05) + 1;
+  } else {
+    rank = rows.findIndex((r) => r.uid === backend.uid && r.score === placedCount) + 1;
+  }
+
+  if (rank > 0) {
+    winRankEl.innerHTML = `Rank <strong>#${rank}</strong> on the ${backend.mode} ${MODE.name} leaderboard`;
+  } else {
+    winRankEl.textContent = "Outside the top 10 — try again.";
+  }
+  winEl.classList.add("show");
+}
+
+document.getElementById("restart-btn").addEventListener("click", () => {
+  winEl.classList.remove("show");
+  startedAt = performance.now();
+  timerEnded = false;
+  gameRunning = true;
+  buildWorld();
+});
+
+/* ─────────────────────────────────────────────
+   RAIL LEADERBOARD
+   ───────────────────────────────────────────── */
+const railRowsEl = document.getElementById("rail-rows");
+const railEl = document.getElementById("rail");
+document.getElementById("rail-header").addEventListener("click", () => railEl.classList.toggle("collapsed"));
+
+async function refreshRail() {
+  if (!backend) return;
+  let rows = [];
+  try { rows = await backend.getLeaderboard(MODE.id); } catch {}
+  if (!rows || rows.length === 0) {
+    railRowsEl.innerHTML = `<div class="empty">No scores yet. Be the first.</div>`;
+    return;
+  }
+  railRowsEl.innerHTML = rows.slice(0, 10).map((r, i) => {
+    const isMe = r.uid === backend.uid;
+    const cls = ["row"];
+    if (isMe) cls.push("you");
+    if (i === 0) cls.push("gold");
+    else if (i === 1) cls.push("silver");
+    else if (i === 2) cls.push("bronze");
+    const v = MODE.metric === "time" ? fmtTime(r.time) : `${r.score}`;
+    return `<div class="${cls.join(" ")}">
+      <span class="rank">${i + 1}</span>
+      <span class="name">${escapeHtml(r.name)}</span>
+      <span class="v">${v}</span>
+    </div>`;
+  }).join("");
+}
+</script>
+</body>
+</html>
