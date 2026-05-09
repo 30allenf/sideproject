@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+   MOGSCORE — Tournament arena / boxing weigh-in
+   Black + blood red + championship gold.
+   ───────────────────────────────────────────── */
+
+@theme {
+  --color-arena: #0a0606;
+  --color-arena-2: #120a0a;
+  --color-arena-3: #1c1010;
+  --color-blood: #c8161d;
+  --color-blood-2: #8a0e13;
+  --color-blood-3: #5e0708;
+  --color-gold: #d4a93a;
+  --color-gold-2: #f0cb5e;
+  --color-gold-3: #8a6a1e;
+  --color-bone: #f4ecd8;
+  --color-bone-2: #d4cab2;
+  --color-mute: #6b5e4a;
+
+  --font-display: var(--font-display);
+  --font-heavy: var(--font-heavy);
+  --font-mono: var(--font-mono);
+
+  --ease-arena: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-glide: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html, body {
+  background: var(--color-arena);
+  color: var(--color-bone);
+}
+body {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-feature-settings: "kern";
+}
+
+::selection { background: var(--color-blood); color: var(--color-bone); }
+
+.bg-spotlight {
+  background:
+    radial-gradient(ellipse 50% 60% at 50% 20%, rgba(212, 169, 58, 0.12), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(200, 22, 29, 0.18), transparent 70%),
+    linear-gradient(180deg, #0a0606 0%, #120a0a 60%, #0a0606 100%);
+}
+
+@keyframes grain-shift {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-3%, 2%); }
+  40%  { transform: translate(2%, -2%); }
+  60%  { transform: translate(-2%, -2%); }
+  80%  { transform: translate(3%, 1%); }
+  100% { transform: translate(0, 0); }
+}
+.grain {
+  position: fixed; inset: -10%;
+  pointer-events: none; z-index: 80;
+  opacity: 0.13; mix-blend-mode: overlay;
+  animation: grain-shift 1.2s steps(8) infinite;
+}
+
+.font-display { font-family: var(--font-display), Impact, sans-serif; letter-spacing: 0.02em; }
+.font-heavy { font-family: var(--font-heavy), Impact, sans-serif; letter-spacing: -0.01em; }
+.font-mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+.eyebrow {
+  font-family: var(--font-mono), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-gold);
+}
+.huge {
+  font-family: var(--font-heavy), Impact, sans-serif;
+  font-weight: 400;
+  font-size: clamp(4rem, 16vw, 14rem);
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+.display-l {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.display-m {
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.arena-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.1rem 2.4rem;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--color-bone);
+  background: linear-gradient(180deg, var(--color-blood) 0%, var(--color-blood-2) 100%);
+  border: 2px solid var(--color-gold);
+  border-radius: 0;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-glide), box-shadow 0.2s var(--ease-glide);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 203, 94, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 6px 20px rgba(200, 22, 29, 0.4),
+    0 0 30px rgba(212, 169, 58, 0.2);
+}
+.arena-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(240, 203, 94, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 12px 28px rgba(200, 22, 29, 0.55),
+    0 0 50px rgba(212, 169, 58, 0.4);
+}
+.arena-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.8rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-bone-2);
+  background: transparent;
+  border: 1px solid rgba(212, 169, 58, 0.4);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-glide);
+}
+.ghost-btn:hover { border-color: var(--color-gold); color: var(--color-gold); }
+.ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.gold-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.8rem;
+  font-family: var(--font-display), Impact, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--color-arena);
+  background: linear-gradient(180deg, var(--color-gold-2) 0%, var(--color-gold) 50%, var(--color-gold-3) 100%);
+  border: 1px solid var(--color-gold);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    inset 0 -1px 0 rgba(0,0,0,0.4),
+    0 4px 18px rgba(212, 169, 58, 0.35);
+}
+.gold-btn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.5),
+    0 8px 26px rgba(212, 169, 58, 0.55);
+}
+
+.fight-card {
+  background: linear-gradient(180deg, rgba(28, 16, 16, 0.9), rgba(18, 10, 10, 0.95));
+  border: 1px solid rgba(212, 169, 58, 0.25);
+  position: relative;
+}
+.fight-card::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(212, 169, 58, 0.1);
+  pointer-events: none;
+}
+.fight-card.gold-edge {
+  border-color: rgba(212, 169, 58, 0.6);
+  box-shadow:
+    inset 0 0 0 1px rgba(212, 169, 58, 0.15),
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 0 50px rgba(212, 169, 58, 0.12);
+}
+
+.arena-input {
+  background: rgba(10, 6, 6, 0.7);
+  border: 1px solid rgba(212, 169, 58, 0.3);
+  color: var(--color-bone);
+  padding: 1rem 1.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  outline: none;
+  transition: all 0.2s;
+  border-radius: 0;
+  width: 100%;
+}
+.arena-input:focus {
+  border-color: var(--color-gold);
+  background: rgba(20, 12, 12, 0.85);
+  box-shadow: 0 0 0 1px rgba(212, 169, 58, 0.4);
+}
+.arena-input::placeholder { color: var(--color-mute); }
+
+.tier-untouchable { color: var(--color-gold-2); }
+.tier-elite       { color: var(--color-gold); }
+.tier-solid       { color: var(--color-bone); }
+.tier-above-mid   { color: var(--color-bone-2); }
+.tier-mid         { color: var(--color-mute); }
+.tier-cooked      { color: var(--color-blood); }
+.tier-joever      { color: var(--color-blood-3); }
+
+.progress-track {
+  height: 6px;
+  background: rgba(212, 169, 58, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, var(--color-blood) 0%, var(--color-gold) 100%);
+  transition: width 0.8s var(--ease-arena);
+}
+
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.mount > * { opacity: 0; animation: fade-rise 0.9s var(--ease-arena) forwards; }
+.mount > *:nth-child(1) { animation-delay: 0.05s; }
+.mount > *:nth-child(2) { animation-delay: 0.18s; }
+.mount > *:nth-child(3) { animation-delay: 0.32s; }
+.mount > *:nth-child(4) { animation-delay: 0.46s; }
+.mount > *:nth-child(5) { animation-delay: 0.6s; }
+.mount > *:nth-child(6) { animation-delay: 0.74s; }
+
+@keyframes spot-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+.spot-pulse { animation: spot-pulse 3.4s ease-in-out infinite; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 22s linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px
+  );
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-2) 50%, var(--color-gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(212, 169, 58, 0.3); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: rgba(212, 169, 58, 0.55); }
