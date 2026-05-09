@@ -1,0 +1,233 @@
+@import "tailwindcss";
+@import "chessground/assets/chessground.base.css";
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@400;600;700;800;900&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+
+@theme {
+  /* Cold War palette */
+  --color-void:     #0a0a0a;
+  --color-abyss:    #050505;
+  --color-surface:  #111111;
+  --color-panel:    #181818;
+  --color-border:   #2a2a2a;
+  --color-muted:    #444444;
+
+  --color-bone:     #e8e0d0;
+  --color-bone-dim: #8a8070;
+
+  --color-crimson:  #c0392b;
+  --color-crimson-deep: #8b0000;
+  --color-crimson-glow: rgba(192, 57, 43, 0.35);
+
+  --color-amber:    #d4920a;
+  --color-amber-dim:#7a5405;
+
+  --color-signal:   #22c55e;   /* "safe" green for presence dot */
+
+  /* Board colors */
+  --color-sq-light: #c8c0a8;
+  --color-sq-dark:  #1a1a1a;
+
+  /* Fonts */
+  --font-display: 'Big Shoulders Display', 'Impact', sans-serif;
+  --font-mono:    'IBM Plex Mono', 'Courier New', monospace;
+}
+
+/* ── Global resets ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background: var(--color-void);
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100dvh;
+  background: var(--color-void);
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ── Grain overlay (every page) ────────────────────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────── */
+.font-display { font-family: var(--font-display) !important; }
+.font-mono    { font-family: var(--font-mono)    !important; }
+
+h1, h2, h3, .heading { font-family: var(--font-display); letter-spacing: 0.04em; }
+
+/* ── Chessground overrides ──────────────────────────────────────────── */
+cg-board {
+  background-color: var(--color-sq-light) !important;
+}
+cg-board square.black {
+  background-color: var(--color-sq-dark) !important;
+}
+cg-board square.last-move {
+  background-color: rgba(212, 146, 10, 0.4) !important;
+}
+cg-board square.selected {
+  background-color: rgba(192, 57, 43, 0.55) !important;
+}
+cg-board square.move-dest {
+  background: radial-gradient(circle, rgba(232, 224, 208, 0.5) 18%, transparent 19%) !important;
+}
+cg-board square.check {
+  background: radial-gradient(ellipse at center, rgba(192, 57, 43, 0.95), transparent 70%) !important;
+}
+cg-board piece {
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+}
+
+/* ── Panic meter ────────────────────────────────────────────────────── */
+@keyframes panicPulse {
+  0%, 100% { box-shadow: 0 0 8px var(--color-crimson-glow); }
+  50%       { box-shadow: 0 0 24px var(--color-crimson), 0 0 48px var(--color-crimson-glow); }
+}
+@keyframes meterStrobe {
+  0%, 100% { border-color: var(--color-crimson); }
+  50%       { border-color: #ff6b6b; }
+}
+@keyframes backgroundFlicker {
+  0%, 90%, 100% { opacity: 0; }
+  92%, 98%      { opacity: 0.04; }
+}
+
+.panic-pulse   { animation: panicPulse 1.2s ease-in-out infinite; }
+.panic-strobe  { animation: meterStrobe 0.4s linear infinite; }
+.bg-flicker    { animation: backgroundFlicker 3s linear infinite; }
+
+/* ── Scanlines on webcam thumbnails ─────────────────────────────────── */
+.scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.35) 2px,
+    rgba(0, 0, 0, 0.35) 3px
+  );
+}
+
+/* ── Calibration scanner ─────────────────────────────────────────────── */
+@keyframes scanSweep {
+  0%   { top: 0; }
+  100% { top: 100%; }
+}
+.scan-sweep {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-crimson), transparent);
+  animation: scanSweep 1.4s linear infinite;
+  box-shadow: 0 0 8px var(--color-crimson);
+}
+
+/* ── Bluff toggle ────────────────────────────────────────────────────── */
+@keyframes indicatorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.bluff-active .bluff-indicator {
+  background: var(--color-crimson) !important;
+  animation: indicatorBlink 0.8s linear infinite;
+}
+
+/* ── Red ambient flicker on maxed panic ─────────────────────────────── */
+.ambient-panic {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(ellipse at center, var(--color-crimson-deep) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.ambient-panic.active { opacity: 0.06; animation: backgroundFlicker 2s linear infinite; }
+
+/* ── Utility classes ─────────────────────────────────────────────────── */
+.text-bone        { color: var(--color-bone); }
+.text-bone-dim    { color: var(--color-bone-dim); }
+.text-crimson     { color: var(--color-crimson); }
+.text-amber       { color: var(--color-amber); }
+.bg-void          { background-color: var(--color-void); }
+.bg-surface       { background-color: var(--color-surface); }
+.bg-panel         { background-color: var(--color-panel); }
+.border-subtle    { border-color: var(--color-border); }
+.border-crimson   { border-color: var(--color-crimson); }
+
+.btn-primary {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 12px 28px;
+  background: var(--color-crimson);
+  color: var(--color-bone);
+  border: 1px solid var(--color-crimson);
+  cursor: pointer;
+  transition: all 200ms;
+  font-size: 16px;
+}
+.btn-primary:hover {
+  background: transparent;
+  color: var(--color-crimson);
+  box-shadow: 0 0 20px var(--color-crimson-glow);
+}
+
+.btn-ghost {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 24px;
+  background: transparent;
+  color: var(--color-bone-dim);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 200ms;
+  font-size: 14px;
+}
+.btn-ghost:hover {
+  color: var(--color-bone);
+  border-color: var(--color-muted);
+}
+
+.card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.7) 100%);
+}
+
+/* data readout styling */
+.readout {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-bone-dim);
+}
+
+/* separator ornament */
+.sep { color: var(--color-muted); margin: 0 8px; }
