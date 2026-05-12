@@ -7,10 +7,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { useGame } from '@/hooks/useGame'
 import { useRPPG } from '@/hooks/useRPPG'
 import { usePanicSync } from '@/hooks/usePanicSync'
-import { getLiveGame, setPlayerReady } from '@/lib/firebase/realtime'
+import { getLiveGame } from '@/lib/firebase/realtime'
+import { Chess } from 'chess.js'
 import { BOTS, StockfishEngine, botPanicIndex } from '@/lib/bots'
-import { formatClock, generateGameId } from '@/lib/chess/game'
-import { buildDests } from '@/lib/chess/game'
 import type { LiveGame, RPPGCalibration } from '@/types'
 import ChessBoard from '@/components/board/ChessBoard'
 import PanicMeter from '@/components/board/PanicMeter'
@@ -42,6 +41,7 @@ export default function GamePage() {
   const [bluffActive, setBluffActive]     = useState(false)
   const [bluffUsed, setBluffUsed]         = useState(false)
   const [showResult, setShowResult]       = useState(false)
+  const [stockfishReady, setStockfishReady] = useState(false)
 
   const stockfishRef = useRef<StockfishEngine | null>(null)
   const videoRef     = useRef<HTMLVideoElement>(null)
@@ -65,6 +65,9 @@ export default function GamePage() {
         engine.init().then(() => {
           engine.setSkillLevel(def.skillLevel)
           stockfishRef.current = engine
+          setStockfishReady(true)  // triggers getBotMove to recreate → bot effect re-runs
+        }).catch(() => {
+          setStockfishReady(true)  // even on failure, unblock bot (will use fallback)
         })
       }
     })
@@ -115,8 +118,18 @@ export default function GamePage() {
 
   // ── Chess game ────────────────────────────────────────────────────────────
   const getBotMove = useCallback((fen: string, cb: (move: string) => void) => {
-    stockfishRef.current?.getBestMove(fen, 1200 + botDef.level * 150, cb)
-  }, [botDef.level])
+    if (stockfishRef.current) {
+      stockfishRef.current.getBestMove(fen, 1200 + botDef.level * 150, cb)
+    } else {
+      // Synchronous fallback: random legal move while Stockfish loads
+      const c = new Chess(fen)
+      const moves = c.moves({ verbose: true })
+      if (moves.length > 0) {
+        const m = moves[Math.floor(Math.random() * moves.length)]
+        cb(m.from + m.to + (m.promotion ?? ''))
+      }
+    }
+  }, [botDef.level, stockfishReady])
 
   const gameState = useGame({
     gameId, myColor,
@@ -131,15 +144,20 @@ export default function GamePage() {
   // ── Calibration flow ─────────────────────────────────────────────────────
   function handleStartCalibration() {
     setCalibStarted(true)
-    setPlayerReady(gameId, myColor, cameraGranted)
     startCalibration()
-    setTimeout(() => endCalibration(), 15000)
+    setTimeout(() => {
+      endCalibration()
+      // Force-complete 2s after sending calibrate_end, in case worker doesn't respond
+      setTimeout(() => {
+        setCalibrated(true)
+        setCalibStarted(false)
+      }, 2000)
+    }, 15000)
   }
 
   function skipCalibration() {
     setCalibrated(true)
     setCalibStarted(false)
-    setPlayerReady(gameId, myColor, false)
   }
 
   // ── Bluff ─────────────────────────────────────────────────────────────────

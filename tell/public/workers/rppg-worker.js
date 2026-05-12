@@ -245,12 +245,13 @@ self.onmessage = function (e) {
           const b = chromBPM(calibBuf.slice(start, start + 30))
           if (b > 40 && b < 180) bpms.push(b)
         }
-        if (bpms.length) {
-          baselineBpm = mean(bpms)
-          smoothedBpm = baselineBpm
-          self.postMessage({ type: 'calibrated', baselineBpm })
-        }
+        baselineBpm = bpms.length ? mean(bpms) : 70  // fallback to 70 BPM if no valid data
+        smoothedBpm = baselineBpm
+      } else {
+        baselineBpm = 70  // not enough data, use default
+        smoothedBpm = 70
       }
+      self.postMessage({ type: 'calibrated', baselineBpm })
       calibBuf = []
       break
     }

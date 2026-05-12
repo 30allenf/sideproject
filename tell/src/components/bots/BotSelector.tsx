@@ -4,21 +4,18 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { BOTS } from '@/lib/bots'
-import { createLiveGame } from '@/lib/firebase/realtime'
-import { generateGameId } from '@/lib/chess/game'
-import { TIME_CONTROLS } from '@/lib/chess/game'
-import type { TimeControl, LiveGame } from '@/types'
-import type { UserProfile } from '@/types'
+import { generateGameId, TIME_CONTROLS } from '@/lib/chess/game'
+import type { TimeControl, LiveGame, UserProfile } from '@/types'
 
 interface BotSelectorProps {
   profile: UserProfile
 }
 
 const TIME_OPTIONS: { label: string; tc: TimeControl }[] = [
-  { label: 'BULLET 2+1',   tc: 'bullet' },
-  { label: 'BLITZ 5+0',    tc: 'blitz5+0' },
-  { label: 'BLITZ 5+3',    tc: 'blitz5+3' },
-  { label: 'RAPID 15+10',  tc: 'rapid' },
+  { label: 'BULLET 2+1',  tc: 'bullet' },
+  { label: 'BLITZ 5+0',   tc: 'blitz5+0' },
+  { label: 'BLITZ 5+3',   tc: 'blitz5+3' },
+  { label: 'RAPID 15+10', tc: 'rapid' },
 ]
 
 export default function BotSelector({ profile }: BotSelectorProps) {
@@ -27,15 +24,15 @@ export default function BotSelector({ profile }: BotSelectorProps) {
   const [selectedTc, setSelectedTc]   = useState<TimeControl>('blitz5+0')
   const [loading, setLoading]          = useState(false)
 
-  async function startGame() {
+  function startGame() {
     setLoading(true)
-    const gameId = generateGameId()
-    const myColor: 'white' | 'black' = Math.random() < 0.5 ? 'white' : 'black'
+    const gameId    = generateGameId()
+    const myColor: 'white' | 'black'  = Math.random() < 0.5 ? 'white' : 'black'
     const botColor: 'white' | 'black' = myColor === 'white' ? 'black' : 'white'
     const tc = TIME_CONTROLS[selectedTc]
 
     const game: LiveGame = {
-      status: 'waiting',
+      status: 'active',
       fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       moves: [],
       clocks: {
@@ -45,7 +42,7 @@ export default function BotSelector({ profile }: BotSelectorProps) {
         activeColor: 'white',
       },
       players: {
-        [myColor]:  { uid: profile.uid,        username: profile.username, hasCamera: false, ready: false },
+        [myColor]:  { uid: profile.uid, username: profile.username, hasCamera: false, ready: true },
         [botColor]: { uid: `bot-${selectedBot.level}`, username: selectedBot.name, hasCamera: false, ready: true },
       } as LiveGame['players'],
       panic: {
@@ -60,7 +57,7 @@ export default function BotSelector({ profile }: BotSelectorProps) {
       createdAt: Date.now(),
     }
 
-    await createLiveGame(gameId, game)
+    localStorage.setItem(`tell_game_${gameId}`, JSON.stringify(game))
     router.push(`/game/${gameId}`)
   }
 
@@ -81,28 +78,18 @@ export default function BotSelector({ profile }: BotSelectorProps) {
                 transition={{ delay: i * 0.05 }}
                 className="card p-4 text-left transition-all cursor-pointer"
                 style={{
-                  borderColor: isSelected
-                    ? 'var(--color-crimson)'
-                    : 'var(--color-border)',
-                  background: isSelected
-                    ? 'rgba(192,57,43,0.1)'
-                    : 'var(--color-panel)',
-                  boxShadow: isSelected ? '0 0 20px var(--color-crimson-glow)' : 'none',
+                  borderColor: isSelected ? 'var(--color-crimson)' : 'var(--color-border)',
+                  background:  isSelected ? 'rgba(192,57,43,0.1)' : 'var(--color-panel)',
+                  boxShadow:   isSelected ? '0 0 20px var(--color-crimson-glow)' : 'none',
                 }}
               >
                 <div
                   className="font-display font-black tracking-widest uppercase mb-1"
-                  style={{
-                    fontSize: isMachine ? 18 : 16,
-                    color: isMachine ? 'var(--color-crimson)' : 'var(--color-bone)',
-                  }}
+                  style={{ fontSize: isMachine ? 18 : 16, color: isMachine ? 'var(--color-crimson)' : 'var(--color-bone)' }}
                 >
                   {bot.name}
                 </div>
-                <div
-                  className="readout mb-2"
-                  style={{ fontSize: 10, color: 'var(--color-amber)' }}
-                >
+                <div className="readout mb-2" style={{ fontSize: 10, color: 'var(--color-amber)' }}>
                   ~{bot.eloEstimate} ELO
                 </div>
                 <div
@@ -111,8 +98,6 @@ export default function BotSelector({ profile }: BotSelectorProps) {
                 >
                   {bot.blurb}
                 </div>
-
-                {/* Panic behavior preview bars */}
                 {!isMachine && (
                   <div className="mt-3 flex gap-0.5 items-end h-4">
                     {Array.from({ length: 8 }).map((_, j) => (
@@ -129,9 +114,7 @@ export default function BotSelector({ profile }: BotSelectorProps) {
                     ))}
                   </div>
                 )}
-                {isMachine && (
-                  <div className="mt-3 h-0.5 w-full" style={{ background: 'var(--color-muted)' }} />
-                )}
+                {isMachine && <div className="mt-3 h-0.5 w-full" style={{ background: 'var(--color-muted)' }} />}
               </motion.button>
             )
           })}
@@ -170,8 +153,8 @@ function panicBarHeight(behavior: string, step: number): number {
     case 'material_panic': return step < 4 ? 0.1 : (step - 4) * 0.2
     case 'blunder_spike':  return step === 5 ? 0.9 : 0.08
     case 'flat_flicker':   return step === 3 ? 0.3 : 0.06
-    case 'iceberg':        return step < 7 ? 0.02 : 0.02
-    case 'intimidating':   return 0.025 + Math.random() * 0.01
+    case 'iceberg':        return 0.02
+    case 'intimidating':   return 0.025
     case 'ghost':          return 0.05
     default:               return 0
   }

@@ -1,14 +1,31 @@
 'use client'
 
 import { useState, useEffect, createContext, useContext } from 'react'
-import type { User } from 'firebase/auth'
-import { onAuthChange } from '@/lib/firebase/auth'
-import { getUserProfile, setUsername as dbSetUsername } from '@/lib/firebase/db'
-import { setPresence } from '@/lib/firebase/realtime'
 import type { UserProfile } from '@/types'
 
+const PROFILE_KEY = 'tell_profile'
+const UID_KEY     = 'tell_uid'
+
+function loadProfile(): UserProfile | null {
+  if (typeof window === 'undefined') return null
+  const raw = localStorage.getItem(PROFILE_KEY)
+  try { return raw ? JSON.parse(raw) : null } catch { return null }
+}
+
+function saveProfile(p: UserProfile) {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(p))
+}
+
+function getOrCreateUid(): string {
+  let uid = localStorage.getItem(UID_KEY)
+  if (!uid) {
+    uid = 'local_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36)
+    localStorage.setItem(UID_KEY, uid)
+  }
+  return uid
+}
+
 interface AuthContextValue {
-  user: User | null
   profile: UserProfile | null
   loading: boolean
   needsUsername: boolean
@@ -16,7 +33,7 @@ interface AuthContextValue {
 }
 
 export const AuthContext = createContext<AuthContextValue>({
-  user: null, profile: null, loading: true, needsUsername: false,
+  profile: null, loading: true, needsUsername: false,
   setUsername: async () => {},
 })
 
@@ -25,35 +42,34 @@ export function useAuth() {
 }
 
 export function useAuthProvider(): AuthContextValue {
-  const [user, setUser]         = useState<User | null>(null)
-  const [profile, setProfile]   = useState<UserProfile | null>(null)
-  const [loading, setLoading]   = useState(true)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsub = onAuthChange(async (u) => {
-      setUser(u)
-      if (u) {
-        const p = await getUserProfile(u.uid)
-        setProfile(p)
-        // Register presence
-        const cleanupPresence = setPresence(u.uid, null)
-        return () => cleanupPresence()
-      } else {
-        setProfile(null)
-      }
-      setLoading(false)
-    })
-    return unsub
+    setProfile(loadProfile())
+    setLoading(false)
   }, [])
 
   async function setUsername(username: string) {
-    if (!user) return
-    await dbSetUsername(user.uid, username)
-    const p = await getUserProfile(user.uid)
-    setProfile(p)
+    const uid = getOrCreateUid()
+    const existing = loadProfile()
+    const p: UserProfile = existing ?? {
+      uid,
+      username,
+      displayName: username,
+      photoURL: null,
+      email: '',
+      elo: { bullet: 800, blitz: 800, rapid: 800 },
+      stats: { wins: 0, losses: 0, draws: 0, totalPanicDealt: 0, avgGameLength: 0 },
+      friends: [],
+      createdAt: Date.now(),
+    }
+    const updated = { ...p, uid, username, displayName: username }
+    saveProfile(updated)
+    setProfile(updated)
   }
 
-  const needsUsername = !!user && !!profile && !profile.username
+  const needsUsername = !loading && (!profile || !profile.username)
 
-  return { user, profile, loading, needsUsername, setUsername }
+  return { profile, loading, needsUsername, setUsername }
 }

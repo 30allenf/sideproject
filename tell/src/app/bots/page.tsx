@@ -8,12 +8,12 @@ import { useAuth } from '@/hooks/useAuth'
 import BotSelector from '@/components/bots/BotSelector'
 
 export default function BotsPage() {
-  const { user, profile, loading } = useAuth()
+  const { profile, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/')
-  }, [user, loading, router])
+    if (!loading && !profile) router.replace('/')
+  }, [profile, loading, router])
 
   if (loading || !profile) return null
 
